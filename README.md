@@ -123,6 +123,20 @@ DB_PORT=27001
 # --- END managed by worktree-env ---
 ```
 
+## AI coding agents
+
+`worktree-env` works well with AI coding agents that use git worktrees for task isolation. Once wired into your `package.json` scripts, every worktree — whether created by a developer or an agent like Claude Code or GitHub Copilot — gets unique ports automatically with no extra configuration.
+
+```json
+{
+  "scripts": {
+    "docker:up": "worktree-env && docker compose up -d"
+  }
+}
+```
+
+Any agent that runs `npm run docker:up` in a worktree gets isolated ports for free.
+
 ## Requirements
 
 - Node.js >= 18
