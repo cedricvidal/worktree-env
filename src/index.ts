@@ -5,6 +5,8 @@ export {
   findLowestUnusedOffset,
   computeWorktreeEnv,
   updateEnvFile,
+  parseWorktreeList,
+  detectWorktreeInfo,
   BEGIN_MARKER,
   END_MARKER,
 } from "./worktree-env.js";
@@ -14,4 +16,5 @@ export type {
   StringEntry,
   EnvBaseResult,
   WorktreeEnvResult,
+  WorktreeInfo,
 } from "./worktree-env.js";

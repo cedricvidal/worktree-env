@@ -15,6 +15,8 @@ import {
   findLowestUnusedOffset,
   computeWorktreeEnv,
   updateEnvFile,
+  parseWorktreeList,
+  detectWorktreeInfo,
 } from "./worktree-env.js";
 
 // --- countTrailingZeros ------------------------------------------------------
@@ -117,32 +119,37 @@ describe("findLowestUnusedOffset", () => {
   });
 
   it("returns 1 when no offsets exist", () => {
-    expect(findLowestUnusedOffset(sandbox, "wt-a")).toBe(1);
+    const siblings = [join(sandbox, "wt-b"), join(sandbox, "wt-c")];
+    expect(findLowestUnusedOffset(siblings)).toBe(1);
   });
 
   it("returns 2 when offset 1 is taken", () => {
     writeFileSync(join(sandbox, "wt-b", ".port-offset"), "1\n");
-    expect(findLowestUnusedOffset(sandbox, "wt-a")).toBe(2);
+    const siblings = [join(sandbox, "wt-b"), join(sandbox, "wt-c")];
+    expect(findLowestUnusedOffset(siblings)).toBe(2);
   });
 
   it("fills gaps — returns 1 when 2 and 3 are taken", () => {
     writeFileSync(join(sandbox, "wt-b", ".port-offset"), "2\n");
     writeFileSync(join(sandbox, "wt-c", ".port-offset"), "3\n");
-    expect(findLowestUnusedOffset(sandbox, "wt-a")).toBe(1);
+    const siblings = [join(sandbox, "wt-b"), join(sandbox, "wt-c")];
+    expect(findLowestUnusedOffset(siblings)).toBe(1);
   });
 
-  it("skips current worktree's offset file", () => {
-    writeFileSync(join(sandbox, "wt-a", ".port-offset"), "1\n");
-    // wt-a's own file is excluded, so lowest is 1 again if no others
-    expect(findLowestUnusedOffset(sandbox, "wt-a")).toBe(1);
+  it("returns 1 when sibling list is empty", () => {
+    expect(findLowestUnusedOffset([])).toBe(1);
   });
 
   it("returns next after all consecutive taken", () => {
     writeFileSync(join(sandbox, "wt-a", ".port-offset"), "1\n");
     writeFileSync(join(sandbox, "wt-b", ".port-offset"), "2\n");
     writeFileSync(join(sandbox, "wt-c", ".port-offset"), "3\n");
-    // New worktree "wt-d" (not in sandbox yet, but that's fine)
-    expect(findLowestUnusedOffset(sandbox, "wt-d")).toBe(4);
+    const siblings = [
+      join(sandbox, "wt-a"),
+      join(sandbox, "wt-b"),
+      join(sandbox, "wt-c"),
+    ];
+    expect(findLowestUnusedOffset(siblings)).toBe(4);
   });
 });
 
@@ -165,7 +172,7 @@ describe("computeWorktreeEnv", () => {
     rmSync(sandbox, { recursive: true, force: true });
   });
 
-  it("returns offset 0 for main repo (not inside .worktrees/)", () => {
+  it("returns offset 0 for main repo (no worktree info)", () => {
     const result = computeWorktreeEnv(sandbox, basePorts);
     expect(result.offset).toBe(0);
     expect(result.worktreeName).toBeNull();
@@ -175,11 +182,11 @@ describe("computeWorktreeEnv", () => {
   });
 
   it("assigns offset 1 for first worktree", () => {
-    const worktreesDir = join(sandbox, ".worktrees");
-    const wtDir = join(worktreesDir, "my-feature");
+    const wtDir = join(sandbox, "my-feature");
     mkdirSync(wtDir, { recursive: true });
 
-    const result = computeWorktreeEnv(wtDir, basePorts);
+    const info = { worktreeName: "my-feature", siblingPaths: [] };
+    const result = computeWorktreeEnv(wtDir, basePorts, [], info);
     expect(result.offset).toBe(1);
     expect(result.worktreeName).toBe("my-feature");
     expect(result.ports.MONGODB_PORT).toBe(27001);
@@ -191,33 +198,32 @@ describe("computeWorktreeEnv", () => {
   });
 
   it("reuses existing .port-offset", () => {
-    const worktreesDir = join(sandbox, ".worktrees");
-    const wtDir = join(worktreesDir, "my-feature");
+    const wtDir = join(sandbox, "my-feature");
     mkdirSync(wtDir, { recursive: true });
     writeFileSync(join(wtDir, ".port-offset"), "5\n");
 
-    const result = computeWorktreeEnv(wtDir, basePorts);
+    const info = { worktreeName: "my-feature", siblingPaths: [] };
+    const result = computeWorktreeEnv(wtDir, basePorts, [], info);
     expect(result.offset).toBe(5);
     expect(result.ports.API_PORT).toBe(3105);
   });
 
   it("assigns next available offset when others are taken", () => {
-    const worktreesDir = join(sandbox, ".worktrees");
-    const wtA = join(worktreesDir, "wt-a");
-    const wtB = join(worktreesDir, "wt-b");
+    const wtA = join(sandbox, "wt-a");
+    const wtB = join(sandbox, "wt-b");
     mkdirSync(wtA, { recursive: true });
     mkdirSync(wtB, { recursive: true });
     writeFileSync(join(wtA, ".port-offset"), "1\n");
 
-    const result = computeWorktreeEnv(wtB, basePorts);
+    const info = { worktreeName: "wt-b", siblingPaths: [wtA] };
+    const result = computeWorktreeEnv(wtB, basePorts, [], info);
     expect(result.offset).toBe(2);
   });
 
   it("recycles gap offsets", () => {
-    const worktreesDir = join(sandbox, ".worktrees");
-    const wtA = join(worktreesDir, "wt-a");
-    const wtB = join(worktreesDir, "wt-b");
-    const wtC = join(worktreesDir, "wt-c");
+    const wtA = join(sandbox, "wt-a");
+    const wtB = join(sandbox, "wt-b");
+    const wtC = join(sandbox, "wt-c");
     mkdirSync(wtA, { recursive: true });
     mkdirSync(wtB, { recursive: true });
     mkdirSync(wtC, { recursive: true });
@@ -225,30 +231,33 @@ describe("computeWorktreeEnv", () => {
     writeFileSync(join(wtA, ".port-offset"), "2\n");
     writeFileSync(join(wtB, ".port-offset"), "3\n");
 
-    const result = computeWorktreeEnv(wtC, basePorts);
+    const info = { worktreeName: "wt-c", siblingPaths: [wtA, wtB] };
+    const result = computeWorktreeEnv(wtC, basePorts, [], info);
     expect(result.offset).toBe(1);
   });
 
   it("throws when offset exceeds available range", () => {
-    const worktreesDir = join(sandbox, ".worktrees");
     // Use a port with only 1 trailing zero (max offset 9)
     const tightPorts = [{ name: "TIGHT_PORT", base: 3140 }];
 
     // Create 9 worktrees taking offsets 1-9
+    const siblings: string[] = [];
     for (let i = 1; i <= 9; i++) {
-      const dir = join(worktreesDir, `wt-${i}`);
+      const dir = join(sandbox, `wt-${i}`);
       mkdirSync(dir, { recursive: true });
       writeFileSync(join(dir, ".port-offset"), `${i}\n`);
+      siblings.push(dir);
     }
-    const wtNew = join(worktreesDir, "wt-new");
+    const wtNew = join(sandbox, "wt-new");
     mkdirSync(wtNew, { recursive: true });
 
-    expect(() => computeWorktreeEnv(wtNew, tightPorts)).toThrow(
+    const info = { worktreeName: "wt-new", siblingPaths: siblings };
+    expect(() => computeWorktreeEnv(wtNew, tightPorts, [], info)).toThrow(
       /exceeds available range/,
     );
   });
 
-  // --- COMPOSE_PROJECT_NAME (string entries) ---
+  // --- String entries ---
 
   it("returns base string value for main repo", () => {
     const strings = [{ name: "COMPOSE_PROJECT_NAME", value: "my-app" }];
@@ -257,12 +266,12 @@ describe("computeWorktreeEnv", () => {
   });
 
   it("appends worktree name to string values", () => {
-    const worktreesDir = join(sandbox, ".worktrees");
-    const wtDir = join(worktreesDir, "my-feature");
+    const wtDir = join(sandbox, "my-feature");
     mkdirSync(wtDir, { recursive: true });
 
     const strings = [{ name: "COMPOSE_PROJECT_NAME", value: "my-app" }];
-    const result = computeWorktreeEnv(wtDir, basePorts, strings);
+    const info = { worktreeName: "my-feature", siblingPaths: [] };
+    const result = computeWorktreeEnv(wtDir, basePorts, strings, info);
     expect(result.strings.COMPOSE_PROJECT_NAME).toBe("my-app-my-feature");
   });
 
@@ -372,5 +381,122 @@ BELOW=2
     updateEnvFile(envPath, result);
     const second = readFileSync(envPath, "utf-8");
     expect(first).toBe(second);
+  });
+});
+
+// --- parseWorktreeList -------------------------------------------------------
+
+describe("parseWorktreeList", () => {
+  it("parses porcelain output with one entry (main only)", () => {
+    const output = `worktree /home/user/repo
+HEAD abc123
+branch refs/heads/main
+
+`;
+    expect(parseWorktreeList(output)).toEqual(["/home/user/repo"]);
+  });
+
+  it("parses porcelain output with multiple entries", () => {
+    const output = `worktree /home/user/repo
+HEAD abc123
+branch refs/heads/main
+
+worktree /home/user/worktrees/feat-a
+HEAD def456
+branch refs/heads/feat-a
+
+worktree /tmp/wt-b
+HEAD 789abc
+branch refs/heads/fix-b
+
+`;
+    expect(parseWorktreeList(output)).toEqual([
+      "/home/user/repo",
+      "/home/user/worktrees/feat-a",
+      "/tmp/wt-b",
+    ]);
+  });
+
+  it("returns empty array for empty input", () => {
+    expect(parseWorktreeList("")).toEqual([]);
+  });
+
+  it("handles paths with spaces", () => {
+    const output = `worktree /home/user/my projects/repo
+HEAD abc123
+branch refs/heads/main
+
+`;
+    expect(parseWorktreeList(output)).toEqual(["/home/user/my projects/repo"]);
+  });
+});
+
+// --- detectWorktreeInfo ------------------------------------------------------
+
+describe("detectWorktreeInfo", () => {
+  it("returns null worktreeName for main repo", () => {
+    const info = detectWorktreeInfo(
+      "/home/user/repo/.git",
+      "/home/user/repo/.git",
+      `worktree /home/user/repo\nHEAD abc\nbranch refs/heads/main\n\n`,
+      "/home/user/repo",
+    );
+    expect(info.worktreeName).toBeNull();
+    expect(info.siblingPaths).toEqual([]);
+  });
+
+  it("detects worktree and extracts name from git dir", () => {
+    const porcelain = `worktree /home/user/repo
+HEAD abc
+branch refs/heads/main
+
+worktree /home/user/worktrees/feat-a
+HEAD def
+branch refs/heads/feat-a
+
+`;
+    const info = detectWorktreeInfo(
+      "/home/user/repo/.git/worktrees/feat-a",
+      "/home/user/repo/.git",
+      porcelain,
+      "/home/user/worktrees/feat-a",
+    );
+    expect(info.worktreeName).toBe("feat-a");
+    expect(info.siblingPaths).toEqual(["/home/user/repo"]);
+  });
+
+  it("excludes current path from siblings", () => {
+    const porcelain = `worktree /repo
+HEAD a
+branch refs/heads/main
+
+worktree /wt/feat-a
+HEAD b
+branch refs/heads/feat-a
+
+worktree /wt/feat-b
+HEAD c
+branch refs/heads/feat-b
+
+`;
+    const info = detectWorktreeInfo(
+      "/repo/.git/worktrees/feat-b",
+      "/repo/.git",
+      porcelain,
+      "/wt/feat-b",
+    );
+    expect(info.worktreeName).toBe("feat-b");
+    expect(info.siblingPaths).toEqual(["/repo", "/wt/feat-a"]);
+  });
+
+  it("handles relative gitDir and gitCommonDir", () => {
+    // git rev-parse can return relative paths like ".git"
+    const info = detectWorktreeInfo(
+      ".git",
+      ".git",
+      `worktree /home/user/repo\nHEAD abc\nbranch refs/heads/main\n\n`,
+      "/home/user/repo",
+    );
+    expect(info.worktreeName).toBeNull();
   });
 });

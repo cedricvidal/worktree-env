@@ -126,7 +126,7 @@ DB_PORT=27001
 ## Requirements
 
 - Node.js >= 18
-- Git repository using `.worktrees/` directory for worktrees
+- Git repository with worktrees (any layout — `git worktree add` works out of the box)
 
 ## License
 

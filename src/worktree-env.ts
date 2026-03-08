@@ -1,14 +1,13 @@
 // =============================================================================
-// worktree-env.ts — Per-worktree Docker Compose port offset
+// worktree-env.ts — Per-worktree .env management
 // =============================================================================
 // Core logic for computing per-worktree port offsets.
-// Detects whether the repo is the main checkout or a git worktree under
-// .worktrees/, assigns a unique integer offset (1-99), and writes offset
+// Assigns a unique integer offset (1-99) per worktree and writes offset
 // ports into a managed section of .env.
 // =============================================================================
 
-import { readFileSync, writeFileSync, existsSync, readdirSync } from "fs";
-import { join, basename, dirname } from "path";
+import { readFileSync, writeFileSync, existsSync } from "fs";
+import { join, basename, resolve } from "path";
 
 export const BEGIN_MARKER =
   "# --- BEGIN managed by worktree-env (do not edit) ---";
@@ -36,6 +35,11 @@ export interface WorktreeEnvResult {
   offset: number;
   ports: Record<string, number>;
   strings: Record<string, string>;
+}
+
+export interface WorktreeInfo {
+  worktreeName: string | null;
+  siblingPaths: string[];
 }
 
 // --- Core logic --------------------------------------------------------------
@@ -109,19 +113,14 @@ export function parseEnvBase(content: string): EnvBaseResult {
  * sibling worktree .port-offset files.
  */
 export function findLowestUnusedOffset(
-  worktreesDir: string,
-  currentWorktree: string,
+  siblingPaths: string[],
 ): number {
   const taken = new Set<number>();
-  if (existsSync(worktreesDir)) {
-    for (const entry of readdirSync(worktreesDir, { withFileTypes: true })) {
-      if (!entry.isDirectory()) continue;
-      if (entry.name === currentWorktree) continue;
-      const offsetFile = join(worktreesDir, entry.name, ".port-offset");
-      if (existsSync(offsetFile)) {
-        const val = parseInt(readFileSync(offsetFile, "utf-8").trim(), 10);
-        if (!isNaN(val)) taken.add(val);
-      }
+  for (const wtPath of siblingPaths) {
+    const offsetFile = join(wtPath, ".port-offset");
+    if (existsSync(offsetFile)) {
+      const val = parseInt(readFileSync(offsetFile, "utf-8").trim(), 10);
+      if (!isNaN(val)) taken.add(val);
     }
   }
   let offset = 1;
@@ -130,7 +129,7 @@ export function findLowestUnusedOffset(
 }
 
 /**
- * Compute the worktree env: detect worktree, assign offset, compute ports.
+ * Compute the worktree env: assign offset, compute ports.
  * String entries (like COMPOSE_PROJECT_NAME) get a `-<worktreeName>` suffix
  * appended when inside a worktree.
  */
@@ -138,23 +137,19 @@ export function computeWorktreeEnv(
   repoRoot: string,
   basePorts: PortEntry[],
   baseStrings: StringEntry[] = [],
+  worktreeInfo: WorktreeInfo = { worktreeName: null, siblingPaths: [] },
 ): WorktreeEnvResult {
-  let worktreeName: string | null = null;
+  const { worktreeName, siblingPaths } = worktreeInfo;
   let offset = 0;
 
-  // Detect worktree by checking if repoRoot is inside a .worktrees/ directory
-  const parentDir = dirname(repoRoot);
-  const grandparentBase = basename(parentDir);
-
-  if (grandparentBase === ".worktrees") {
-    worktreeName = basename(repoRoot);
+  if (worktreeName !== null) {
     const portOffsetFile = join(repoRoot, ".port-offset");
 
     if (existsSync(portOffsetFile)) {
       offset = parseInt(readFileSync(portOffsetFile, "utf-8").trim(), 10);
       if (isNaN(offset)) offset = 1;
     } else {
-      offset = findLowestUnusedOffset(parentDir, worktreeName!);
+      offset = findLowestUnusedOffset(siblingPaths);
 
       // Validate offset doesn't exceed range for any port
       for (const { name, base } of basePorts) {
@@ -228,4 +223,54 @@ export function updateEnvFile(
   } else {
     writeFileSync(envFilePath, managedBlock + "\n");
   }
+}
+
+// --- Git worktree detection --------------------------------------------------
+
+/**
+ * Parse the output of `git worktree list --porcelain` into an array of
+ * worktree root paths.
+ */
+export function parseWorktreeList(porcelainOutput: string): string[] {
+  const paths: string[] = [];
+  for (const line of porcelainOutput.split("\n")) {
+    if (line.startsWith("worktree ")) {
+      paths.push(line.slice("worktree ".length));
+    }
+  }
+  return paths;
+}
+
+/**
+ * Detect worktree info from git command outputs (pure — no subprocess calls).
+ *
+ * @param gitDir        Output of `git rev-parse --git-dir` (trimmed)
+ * @param gitCommonDir  Output of `git rev-parse --git-common-dir` (trimmed)
+ * @param worktreeListOutput  Output of `git worktree list --porcelain`
+ * @param currentPath   The current worktree root (from `git rev-parse --show-toplevel`)
+ */
+export function detectWorktreeInfo(
+  gitDir: string,
+  gitCommonDir: string,
+  worktreeListOutput: string,
+  currentPath: string,
+): WorktreeInfo {
+  const resolvedGitDir = resolve(gitDir);
+  const resolvedCommonDir = resolve(gitCommonDir);
+
+  if (resolvedGitDir === resolvedCommonDir) {
+    // Main repo — not a worktree
+    return { worktreeName: null, siblingPaths: [] };
+  }
+
+  // In a worktree: gitDir is something like /path/to/.git/worktrees/<name>
+  const worktreeName = basename(resolvedGitDir);
+
+  // Parse all worktree paths and exclude the current one
+  const allPaths = parseWorktreeList(worktreeListOutput);
+  const siblingPaths = allPaths.filter(
+    (p) => resolve(p) !== resolve(currentPath),
+  );
+
+  return { worktreeName, siblingPaths };
 }

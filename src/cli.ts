@@ -11,6 +11,7 @@ import {
   validateBasePorts,
   computeWorktreeEnv,
   updateEnvFile,
+  detectWorktreeInfo,
 } from "./worktree-env.js";
 
 function printHelp(): void {
@@ -79,6 +80,23 @@ function main(): void {
     return; // unreachable, helps TypeScript narrowing
   }
 
+  // Detect worktree info via git
+  const gitDir = execSync("git rev-parse --git-dir", {
+    encoding: "utf-8",
+  }).trim();
+  const gitCommonDir = execSync("git rev-parse --git-common-dir", {
+    encoding: "utf-8",
+  }).trim();
+  const worktreeListOutput = execSync("git worktree list --porcelain", {
+    encoding: "utf-8",
+  });
+  const worktreeInfo = detectWorktreeInfo(
+    gitDir,
+    gitCommonDir,
+    worktreeListOutput,
+    repoRoot,
+  );
+
   const envBasePath = args.envBase ?? join(repoRoot, ".env.base");
   const envFilePath = args.envFile ?? join(repoRoot, ".env");
 
@@ -100,7 +118,12 @@ function main(): void {
   }
 
   // Compute env
-  const result = computeWorktreeEnv(repoRoot, basePorts, baseStrings);
+  const result = computeWorktreeEnv(
+    repoRoot,
+    basePorts,
+    baseStrings,
+    worktreeInfo,
+  );
 
   // Write .env
   updateEnvFile(envFilePath, result);
