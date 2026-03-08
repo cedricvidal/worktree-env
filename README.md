@@ -71,8 +71,29 @@ Run `worktree-env` before any command that reads `.env`:
 {
   "scripts": {
     "dev": "worktree-env && next dev",
-    "docker:up": "worktree-env && docker compose up -d",
     "start": "worktree-env && node server.js"
+  }
+}
+```
+
+Or use a `pre` script to run it automatically before a specific command:
+
+```json
+{
+  "scripts": {
+    "predev": "worktree-env",
+    "dev": "next dev"
+  }
+}
+```
+
+For Docker Compose projects, add `COMPOSE_PROJECT_NAME` to `.env.base` to isolate container names alongside ports:
+
+```json
+{
+  "scripts": {
+    "docker:up": "worktree-env && docker compose up -d",
+    "docker:down": "docker compose down"
   }
 }
 ```
@@ -130,12 +151,12 @@ DB_PORT=27001
 ```json
 {
   "scripts": {
-    "docker:up": "worktree-env && docker compose up -d"
+    "dev": "worktree-env && next dev"
   }
 }
 ```
 
-Any agent that runs `npm run docker:up` in a worktree gets isolated ports for free.
+Any agent that runs `npm run dev` in a worktree gets isolated ports for free.
 
 ## Requirements
 
