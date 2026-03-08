@@ -1,0 +1,45 @@
+{
+  "name": "worktree-env",
+  "version": "0.1.0",
+  "description": "Per-worktree Docker Compose port offset manager — prevents port collisions across parallel git worktrees",
+  "type": "module",
+  "bin": {
+    "worktree-env": "./dist/cli.js"
+  },
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "worktree",
+    "docker-compose",
+    "port-offset",
+    "env",
+    "git-worktree"
+  ],
+  "author": "Cedric Vidal",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/cedricvidal/worktree-env.git"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "devDependencies": {
+    "@types/node": "^25.3.5",
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0"
+  }
+}
