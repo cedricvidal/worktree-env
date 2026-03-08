@@ -14,7 +14,7 @@ import {
 } from "./worktree-env.js";
 
 function printHelp(): void {
-  console.log(`worktree-env — Per-worktree Docker Compose port offset manager
+  console.log(`worktree-env — Automatic per-worktree .env management
 
 Usage:
   worktree-env [options]
@@ -25,12 +25,12 @@ Options:
   --help              Show this help message
 
 Behavior:
-  In main repo:  offset = 0, base ports used as-is.
+  In main repo:  offset = 0, base values used as-is.
   In worktree:   offset = unique integer (1-99), persisted in .port-offset.
 
   Numeric values in .env.base get the offset added (e.g. API_PORT=3100 → 3101).
   String values in .env.base get a -<worktree-name> suffix appended
-  (e.g. COMPOSE_PROJECT_NAME=my-app → my-app-feature-branch).
+  (e.g. PROJECT_NAME=my-app → my-app-feature-branch).
 `);
 }
 
