@@ -158,6 +158,10 @@ DB_PORT=27001
 
 Any agent that runs `npm run dev` in a worktree gets isolated ports for free.
 
+## Related projects
+
+- [WTM (Worktree Merge)](https://github.com/cedricvidal/coding-skills/tree/main/skills/wtm) — an AI agent skill for managing worktree-based coding workflows. Agents create a worktree per task, code in isolation, and merge via PR. Pairs naturally with `worktree-env` for port isolation.
+
 ## Requirements
 
 - Node.js >= 18
