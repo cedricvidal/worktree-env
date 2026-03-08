@@ -4,7 +4,7 @@
   "description": "Automatic per-worktree .env management — unique port offsets and string suffixes so parallel git worktrees never collide",
   "type": "module",
   "bin": {
-    "worktree-env": "./dist/cli.js"
+    "worktree-env": "dist/cli.js"
   },
   "exports": {
     ".": {
@@ -32,7 +32,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/cedricvidal/worktree-env.git"
+    "url": "git+https://github.com/cedricvidal/worktree-env.git"
   },
   "engines": {
     "node": ">=18"
