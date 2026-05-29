@@ -16,6 +16,7 @@
     "dist"
   ],
   "scripts": {
+    "dev": "tsx src/cli.ts",
     "build": "tsc",
     "test": "vitest run",
     "test:watch": "vitest",
