@@ -131,7 +131,7 @@ export function findLowestUnusedOffset(
 /**
  * Compute the worktree env: assign offset, compute ports.
  * String entries (like COMPOSE_PROJECT_NAME) get a `-<offset>-<worktreeName>`
- * suffix appended when inside a worktree, truncated to 64 characters.
+ * suffix appended when inside a worktree, truncated to 60 characters.
  */
 export function computeWorktreeEnv(
   repoRoot: string,
@@ -172,12 +172,12 @@ export function computeWorktreeEnv(
     ports[name] = base + offset;
   }
 
-  // Compute string values (append offset and worktree name, truncated to 64 chars)
+  // Compute string values (append offset and worktree name, truncated to 60 chars)
   const strings: Record<string, string> = {};
   for (const { name, value } of baseStrings) {
     if (worktreeName) {
       const full = `${value}-${offset}-${worktreeName}`;
-      strings[name] = full.length > 64 ? full.slice(0, 64) : full;
+      strings[name] = full.length > 60 ? full.slice(0, 60) : full;
     } else {
       strings[name] = value;
     }
