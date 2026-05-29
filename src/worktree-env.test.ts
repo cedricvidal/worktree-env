@@ -275,7 +275,7 @@ describe("computeWorktreeEnv", () => {
     expect(result.strings.COMPOSE_PROJECT_NAME).toBe("my-app-1-my-feature");
   });
 
-  it("truncates string values to 64 characters", () => {
+  it("truncates string values to 60 characters", () => {
     const wtDir = join(sandbox, "very-long-worktree-name");
     mkdirSync(wtDir, { recursive: true });
 
@@ -283,9 +283,9 @@ describe("computeWorktreeEnv", () => {
     const strings = [{ name: "COMPOSE_PROJECT_NAME", value: longValue }];
     const info = { worktreeName: "very-long-worktree-name", siblingPaths: [] };
     const result = computeWorktreeEnv(wtDir, basePorts, strings, info);
-    expect(result.strings.COMPOSE_PROJECT_NAME).toHaveLength(64);
+    expect(result.strings.COMPOSE_PROJECT_NAME).toHaveLength(60);
     expect(result.strings.COMPOSE_PROJECT_NAME).toBe(
-      `${longValue}-1-very-long-worktree-name`.slice(0, 64),
+      `${longValue}-1-very-long-worktree-name`.slice(0, 60),
     );
   });
 
