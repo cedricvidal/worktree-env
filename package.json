@@ -1,6 +1,6 @@
 {
   "name": "worktree-env",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Automatic per-worktree .env management — unique port offsets and string suffixes so parallel git worktrees never collide",
   "type": "module",
   "bin": {
