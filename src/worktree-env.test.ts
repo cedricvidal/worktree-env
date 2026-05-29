@@ -272,7 +272,21 @@ describe("computeWorktreeEnv", () => {
     const strings = [{ name: "COMPOSE_PROJECT_NAME", value: "my-app" }];
     const info = { worktreeName: "my-feature", siblingPaths: [] };
     const result = computeWorktreeEnv(wtDir, basePorts, strings, info);
-    expect(result.strings.COMPOSE_PROJECT_NAME).toBe("my-app-my-feature");
+    expect(result.strings.COMPOSE_PROJECT_NAME).toBe("my-app-1-my-feature");
+  });
+
+  it("truncates string values to 64 characters", () => {
+    const wtDir = join(sandbox, "very-long-worktree-name");
+    mkdirSync(wtDir, { recursive: true });
+
+    const longValue = "a-very-long-compose-project-name-that-will-exceed";
+    const strings = [{ name: "COMPOSE_PROJECT_NAME", value: longValue }];
+    const info = { worktreeName: "very-long-worktree-name", siblingPaths: [] };
+    const result = computeWorktreeEnv(wtDir, basePorts, strings, info);
+    expect(result.strings.COMPOSE_PROJECT_NAME).toHaveLength(64);
+    expect(result.strings.COMPOSE_PROJECT_NAME).toBe(
+      `${longValue}-1-very-long-worktree-name`.slice(0, 64),
+    );
   });
 
   it("returns empty strings when no string entries provided", () => {
@@ -290,7 +304,7 @@ describe("updateEnvFile", () => {
     worktreeName: "my-feature" as string | null,
     offset: 1,
     ports: { API_PORT: 3101, MONGODB_PORT: 27001 } as Record<string, number>,
-    strings: { COMPOSE_PROJECT_NAME: "my-app-my-feature" } as Record<
+    strings: { COMPOSE_PROJECT_NAME: "my-app-1-my-feature" } as Record<
       string,
       string
     >,
@@ -311,7 +325,7 @@ describe("updateEnvFile", () => {
     const content = readFileSync(envPath, "utf-8");
     expect(content).toContain("BEGIN managed by worktree-env");
     expect(content).toContain("END managed by worktree-env");
-    expect(content).toContain("COMPOSE_PROJECT_NAME=my-app-my-feature");
+    expect(content).toContain("COMPOSE_PROJECT_NAME=my-app-1-my-feature");
     expect(content).toContain("API_PORT=3101");
     expect(content).toContain("MONGODB_PORT=27001");
   });
